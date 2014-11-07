@@ -10,7 +10,7 @@ require "stud/buffer"
 # the best performance and stability will be found in more 
 # recent stable versions.  Versions 2.6.0+ are recommended.
 #
-# For more information about Redis, see <http://redis.io/>
+# For more information, see http://redis.io/[the Redis homepage]
 #
 class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
