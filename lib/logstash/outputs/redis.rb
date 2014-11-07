@@ -28,7 +28,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # hostname, which will override the global port config.
   #
   # For example:
-  #
+  # [source,ruby]
   #     "127.0.0.1"
   #     ["127.0.0.1", "127.0.0.2"]
   #     ["127.0.0.1:6380", "127.0.0.1"]
@@ -50,12 +50,12 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   config :password, :validate => :password
 
   # The name of the Redis queue (we'll use RPUSH on this). Dynamic names are
-  # valid here, for example "logstash-%{type}"
+  # valid here, for example `logstash-%{type}`
   # TODO: delete
   config :queue, :validate => :string, :deprecated => true
 
   # The name of a Redis list or channel. Dynamic names are
-  # valid here, for example "logstash-%{type}".
+  # valid here, for example `logstash-%{type}`.
   # TODO set required true
   config :key, :validate => :string, :required => false
 
@@ -83,7 +83,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # Interval for reconnecting to failed Redis connections
   config :reconnect_interval, :validate => :number, :default => 1
 
-  # In case Redis `data_type` is "list" and has more than @congestion_threshold items,
+  # In case Redis `data_type` is `list` and has more than `@congestion_threshold` items,
   # block until someone consumes them and reduces congestion, otherwise if there are
   # no consumers Redis will run out of memory, unless it was configured with OOM protection.
   # But even with OOM protection, a single Redis list can block all other users of Redis,
