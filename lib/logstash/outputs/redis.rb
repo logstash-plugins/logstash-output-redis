@@ -82,6 +82,9 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # Interval for reconnecting to failed Redis connections
   config :reconnect_interval, :validate => :number, :default => 1
 
+  # Number of reconnection going to be tried out, if not defined it will try to reconnect forever.
+  config :reconnect_times, :validate => :number, :required => false
+
   # In case Redis `data_type` is `list` and has more than `@congestion_threshold` items,
   # block until someone consumes them and reduces congestion, otherwise if there are
   # no consumers Redis will run out of memory, unless it was configured with OOM protection.
@@ -137,6 +140,8 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     @host_idx = 0
 
     @congestion_check_times = Hash.new { |h,k| h[k] = Time.now.to_i - @congestion_interval }
+
+    @reconnect_tries = 0
   end # def register
 
   def receive(event)
@@ -176,7 +181,10 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
                    :backtrace => e.backtrace)
       sleep @reconnect_interval
       @redis = nil
-      retry
+
+      @reconnect_tries += 1
+      retry if retry_connection?
+
     end
   end # def receive
 
@@ -246,6 +254,10 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # A string used to identify a Redis instance in log messages
   def identity
     @name || "redis://#{@password}@#{@current_host}:#{@current_port}/#{@db} #{@data_type}:#{@key}"
+  end
+
+  def retry_connection?
+    (@reconnect_times.nil? || (@reconnect_times && @reconnect_tries < @reconnect_times))
   end
 
 end
