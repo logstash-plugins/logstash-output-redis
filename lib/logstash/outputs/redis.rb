@@ -60,18 +60,19 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # TODO set required true
   config :key, :validate => :string, :required => false
 
-  # Either list or channel.  If `redis_type` is list, then we will set
-  # RPUSH to key. If `redis_type` is channel, then we will PUBLISH to `key`.
+  # Either list, set or channel.  If `redis_type` is list, then we will set
+  # RPUSH to key. If `redis_type` is set, then we will set
+  # ADD to key. If `redis_type` is channel, then we will PUBLISH to `key`.
   # TODO set required true
-  config :data_type, :validate => [ "list", "channel" ], :required => false
+  config :data_type, :validate => [ "list", "set", "channel" ], :required => false
 
   # Set to true if you want Redis to batch up values and send 1 RPUSH command
   # instead of one command per value to push on the list.  Note that this only
-  # works with `data_type="list"` mode right now.
+  # works with `data_type="list"` and `data_type="set"` mode right now.
   #
-  # If true, we send an RPUSH every "batch_events" events or
+  # If true, we send an RPUSH/ADD every "batch_events" events or
   # "batch_timeout" seconds (whichever comes first).
-  # Only supported for `data_type` is "list".
+  # Only supported for `data_type` is "list" or "set".
   config :batch, :validate => :boolean, :default => false
 
   # If batch is set to true, the number of events we queue up for an RPUSH.
@@ -84,13 +85,13 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # Interval for reconnecting to failed Redis connections
   config :reconnect_interval, :validate => :number, :default => 1
 
-  # In case Redis `data_type` is `list` and has more than `@congestion_threshold` items,
+  # In case Redis `data_type` is `list` or `set` and has more than `@congestion_threshold` items,
   # block until someone consumes them and reduces congestion, otherwise if there are
   # no consumers Redis will run out of memory, unless it was configured with OOM protection.
   # But even with OOM protection, a single Redis list can block all other users of Redis,
   # until Redis CPU consumption reaches the max allowed RAM size.
   # A default value of 0 means that this limit is disabled.
-  # Only supported for `list` Redis `data_type`.
+  # Only supported for `list` and `set` Redis `data_type`.
   config :congestion_threshold, :validate => :number, :default => 0
 
   # How often to check for congestion. Default is one second.
@@ -120,7 +121,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
 
     if @batch
-      if @data_type != "list"
+      if @data_type == "channel"
         raise RuntimeError.new(
           "batch is not supported with data_type #{@data_type}"
         )
@@ -141,10 +142,9 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     @congestion_check_times = Hash.new { |h,k| h[k] = Time.now.to_i - @congestion_interval }
 
     @codec.on_event do |event, data|
-      # How can I do this sort of thing with codecs?
       key = event.sprintf(@key)
 
-      if @batch and @data_type == 'list' # Don't use batched method for pubsub.
+      if @batch and @data_type != 'channel' # Don't use batched method for pubsub.
         # Stud::Buffer
         buffer_receive(data, key)
         next
@@ -155,6 +155,9 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
         if @data_type == 'list'
           congestion_check(key)
           @redis.rpush(key, data)
+        elsif @data_type == 'set'
+          congestion_check(key)
+          @redis.sadd(key, data)
         else
           @redis.publish(key, data)
         end
@@ -201,7 +204,11 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     # we should not block due to congestion on teardown
     # to support this Stud::Buffer#buffer_flush should pass here the :final boolean value.
     congestion_check(key) unless teardown
-    @redis.rpush(key, events)
+    if @data_type == 'list'
+      @redis.rpush(key, events)
+    else
+      @redis.sadd(key, events)
+    end
   end
   # called from Stud::Buffer#buffer_flush when an error occurs
   def on_flush_error(e)
