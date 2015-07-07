@@ -7,7 +7,7 @@ require "stud/buffer"
 # The RPUSH command is supported in Redis v0.0.7+. Using
 # PUBLISH to a channel requires at least v1.3.8+.
 # While you may be able to make these Redis versions work,
-# the best performance and stability will be found in more 
+# the best performance and stability will be found in more
 # recent stable versions.  Versions 2.6.0+ are recommended.
 #
 # For more information, see http://redis.io/[the Redis homepage]
@@ -140,14 +140,13 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
     @congestion_check_times = Hash.new { |h,k| h[k] = Time.now.to_i - @congestion_interval }
 
-    @codec.on_event do |payload|
+    @codec.on_event do |event, data|
       # How can I do this sort of thing with codecs?
-      #key = event.sprintf(@key)
-      key = @key
+      key = event.sprintf(@key)
 
       if @batch and @data_type == 'list' # Don't use batched method for pubsub.
         # Stud::Buffer
-        buffer_receive(payload, key)
+        buffer_receive(data, key)
         next
       end
 
@@ -155,13 +154,13 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
         @redis ||= connect
         if @data_type == 'list'
           congestion_check(key)
-          @redis.rpush(key, payload)
+          @redis.rpush(key, data)
         else
-          @redis.publish(key, payload)
+          @redis.publish(key, data)
         end
       rescue => e
         @logger.warn("Failed to send event to Redis", :event => event,
-                     :identity => identity, :exception => e,
+                     :data => data, :identity => identity, :exception => e,
                      :backtrace => e.backtrace)
         sleep @reconnect_interval
         @redis = nil
