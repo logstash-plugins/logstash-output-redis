@@ -187,9 +187,8 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     # if they fail to convert properly.
     begin
       @codec.encode(event)
-    rescue JSON::GeneratorError => e
-      @logger.warn("Trouble converting event to JSON", :exception => e,
-                   :event => event)
+    rescue => e
+      @logger.warn("Trouble converting event", :exception => e, :event => event)
     end
   end # def receive
 
