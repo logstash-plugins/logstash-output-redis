@@ -55,10 +55,13 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # TODO: delete
   config :queue, :validate => :string, :deprecated => true
 
-  # The name of a Redis list or channel. Dynamic names are
+  # The name of a Redis list, set or channel. Dynamic names are
   # valid here, for example `logstash-%{type}`.
   # TODO set required true
   config :key, :validate => :string, :required => false
+
+  # If set, the Redis expire command will be called for the key
+  config :expire, :validate => :number, :required => false
 
   # Either list, set or channel.  If `redis_type` is list, then we will set
   # RPUSH to key. If `redis_type` is set, then we will set
@@ -161,6 +164,9 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
         else
           @redis.publish(key, data)
         end
+        if @expire
+          @redis.expire(key, @expire)
+        end
       rescue => e
         @logger.warn("Failed to send event to Redis", :event => event,
                      :data => data, :identity => identity, :exception => e,
@@ -208,6 +214,9 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       @redis.rpush(key, events)
     else
       @redis.sadd(key, events)
+    end
+    if @expire
+      @redis.expire(key, @expire)
     end
   end
   # called from Stud::Buffer#buffer_flush when an error occurs
