@@ -145,26 +145,25 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       if @batch and @data_type == 'list' # Don't use batched method for pubsub.
         # Stud::Buffer
         buffer_receive(data, event.sprintf(@key))
-        return
-      end
+      else
+        key = event.sprintf(@key)
 
-      key = event.sprintf(@key)
-
-      begin
-        @redis ||= connect
-        if @data_type == 'list'
-          congestion_check(key)
-          @redis.rpush(key, data)
-        else
-          @redis.publish(key, data)
+        begin
+          @redis ||= connect
+          if @data_type == 'list'
+            congestion_check(key)
+            @redis.rpush(key, data)
+          else
+            @redis.publish(key, data)
+          end
+        rescue => e
+          @logger.warn("Failed to send event to Redis", :event => event,
+                       :identity => identity, :exception => e,
+                       :backtrace => e.backtrace)
+          sleep @reconnect_interval
+          @redis = nil
+          retry
         end
-      rescue => e
-        @logger.warn("Failed to send event to Redis", :event => event,
-                     :identity => identity, :exception => e,
-                     :backtrace => e.backtrace)
-        sleep @reconnect_interval
-        @redis = nil
-        retry
       end
     end
   end # def register
