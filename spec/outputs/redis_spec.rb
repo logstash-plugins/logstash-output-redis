@@ -72,7 +72,7 @@ describe LogStash::Outputs::Redis, :redis => true do
     CONFIG
 
     agent do
-      # we have to wait for teardown to execute & flush the last batch.
+      # we have to wait for close to execute & flush the last batch.
       # otherwise we might start doing assertions before everything has been
       # sent out to redis.
       sleep 2
