@@ -140,7 +140,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   end # def register
 
   def receive(event)
-    return unless output?(event)
+    
 
     if @batch and @data_type == 'list' # Don't use batched method for pubsub.
       # Stud::Buffer
