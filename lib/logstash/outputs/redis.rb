@@ -171,11 +171,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
         @redis.publish(key, payload)
       end
     rescue => e
-      @logger.warn("Failed to send event to Redis", :event => event,
-                   :identity => identity, :exception => e,
-                   :backtrace => e.backtrace)
-      sleep @reconnect_interval
-      @redis = nil
+      on_send_error(e, true)
       retry
     end
   end # def receive
@@ -200,14 +196,28 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     @redis.rpush(key, events)
   end
   # called from Stud::Buffer#buffer_flush when an error occurs
-  def on_flush_error(e)
+  def on_send_error(e, _sleep=false)
+    if e.is_a?(Redis::CommandError)
+      @logger.warn("Redis write rejected: #{e.message}", :identity => identity)
+      sleep @reconnect_interval if _sleep
+      return
+    end
+
     @logger.warn("Failed to send backlog of events to Redis",
       :identity => identity,
       :exception => e,
       :backtrace => e.backtrace
     )
+
+    begin
+      @redis.disconnect
+    rescue
+    end
+    sleep @reconnect_interval if _sleep
     @redis = connect
   end
+
+  alias_method :on_flush_error, :on_send_error
 
   def close
     if @batch
