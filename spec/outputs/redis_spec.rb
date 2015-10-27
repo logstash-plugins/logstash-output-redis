@@ -3,6 +3,8 @@ require "logstash/outputs/redis"
 require "logstash/json"
 require "redis"
 
+# integration tests ---------------------
+
 describe LogStash::Outputs::Redis, :redis => true do
   
 
@@ -124,5 +126,36 @@ describe LogStash::Outputs::Redis, :redis => true do
       insist { redis.llen(key) } == 1
     end # agent
   end
+end
+
+# unit tests ---------------------
+
+describe LogStash::Outputs::Redis do
+
+  let(:data_type) { 'list' }
+  let(:cfg) { {'key' => 'foo', 'data_type' => data_type} }
+  
+  subject do
+    LogStash::Plugin.lookup("output", "redis")
+      .new(cfg)
+  end
+
+  context 'renamed redis commands' do
+    let(:cfg) { {'key' => 'foo', 'data_type' => data_type, 'codec' => 'json', 'rpush' => 'test rpush', 'publish' => 'test publish'} }
+
+    before do
+      subject.register
+    end
+
+    it 'sets the renamed commands in the command map' do
+      subject.on_flush_error(RuntimeError.new) # forces a connection
+
+      command_map = subject.instance_variable_get("@redis").client.command_map
+      expect(command_map[:rpush]).to eq cfg['rpush']
+      expect(command_map[:publish]).to eq cfg['publish']
+    end
+
+  end
+
 end
 

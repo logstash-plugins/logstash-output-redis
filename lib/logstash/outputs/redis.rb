@@ -58,6 +58,16 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # TODO set required true
   config :key, :validate => :string, :required => false
 
+  # The value of the renamed redis RPUSH command. Note that this uses a
+  # non-public api in the ruby redis client and support may change in
+  # the future
+  config :rpush, :validate => :string, :required => false
+
+  # The value of the renamed redis PUBLISH command. Note that this uses a
+  # non-public api in the ruby redis client and support may change in
+  # the future
+  config :publish, :validate => :string, :required => false
+
   # Either list or channel.  If `redis_type` is list, then we will set
   # RPUSH to key. If `redis_type` is channel, then we will PUBLISH to `key`.
   # TODO set required true
@@ -240,7 +250,12 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       params[:password] = @password.value
     end
 
-    Redis.new(params)
+    redis = Redis.new(params)
+    @logger.info("Setting redis renamed commands", :rpush => @rpush, :publish => @publish)
+    command_map = redis.client.command_map
+    command_map[:rpush] = @rpush if @rpush
+    command_map[:publish] = @publish if @publish
+    redis
   end # def connect
 
   # A string used to identify a Redis instance in log messages
