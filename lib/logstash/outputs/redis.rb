@@ -82,6 +82,9 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # Interval for reconnecting to failed Redis connections
   config :reconnect_interval, :validate => :number, :default => 1
 
+  # Interval for reconnecting/refreshed to failed Redis connections, zero means dont teardown
+  config :teardown_interval, :validate => :number, :default => 0
+
   # In case Redis `data_type` is `list` and has more than `@congestion_threshold` items,
   # block until someone consumes them and reduces congestion, otherwise if there are
   # no consumers Redis will run out of memory, unless it was configured with OOM protection.
@@ -137,6 +140,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     @host_idx = 0
 
     @congestion_check_times = Hash.new { |h,k| h[k] = Time.now.to_i - @congestion_interval }
+    @teardown_next = Time.now.to_i + @teardown_interval
   end # def register
 
   def receive(event)
@@ -163,6 +167,10 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     end
 
     begin
+      if @teardown_interval > 0 and Time.now.to_i > @teardown_next
+        close() #note: using new close subroutine but keeping teardown name in my parameter and variables
+        @teardown_next = Time.now.to_i + @teardown_interval
+      end
       @redis ||= connect
       if @data_type == 'list'
         congestion_check(key)
@@ -214,6 +222,9 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       buffer_flush(:final => true)
     end
     if @data_type == 'channel' and @redis
+      @redis.quit
+      @redis = nil
+    elsif @redis #supports teardown_interval reestablishing redis connection
       @redis.quit
       @redis = nil
     end
