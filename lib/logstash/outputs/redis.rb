@@ -174,8 +174,10 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
         @redis.rpush(key, payload)
       elsif @data_type == 'increment'
         if @expire == 0
+          # if we don't need an expire, increment forever, and ever
           @redis.incr(key)
         else
+          # in order to ensure that new keys are given an expire, we need to use some lua
           lua_code = "local v = redis.call('INCR', KEYS[1]) if v == 1 then redis.call('EXPIRE', KEYS[1], KEYS[2]) end return v"
           @redis.eval(lua_code, [key, @expire])
         end
