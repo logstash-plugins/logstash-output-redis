@@ -58,10 +58,15 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # TODO set required true
   config :key, :validate => :string, :required => false
 
-  # Either list or channel.  If `redis_type` is list, then we will set
-  # RPUSH to key. If `redis_type` is channel, then we will PUBLISH to `key`.
+  # Either list, channel, or increment. If `redis_type` is list or increment, then we
+  # will set RPUSH to key. If `redis_type` is channel, then we will PUBLISH to `key`.
   # TODO set required true
-  config :data_type, :validate => [ "list", "channel" ], :required => false
+  config :data_type, :validate => [ "list", "channel", "increment" ], :required => false
+
+  # If using increment, set the key to expire at this interval in seconds if not
+  # set, key will just keep increasing.
+  # TODO set required true
+  config :expire, :validate => :number, :required => false, :default => 0
 
   # Set to true if you want Redis to batch up values and send 1 RPUSH command
   # instead of one command per value to push on the list.  Note that this only
@@ -167,6 +172,13 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       if @data_type == 'list'
         congestion_check(key)
         @redis.rpush(key, payload)
+      elsif @data_type == 'increment'
+        if @expire == 0
+          @redis.incr(key)
+        else
+          lua_code = "local v = redis.call('INCR', KEYS[1]) if v == 1 then redis.call('EXPIRE', KEYS[1], KEYS[2]) end return v"
+          @redis.eval(lua_code, [key, @expire])
+        end
       else
         @redis.publish(key, payload)
       end
