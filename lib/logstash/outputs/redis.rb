@@ -140,34 +140,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
     @congestion_check_times = Hash.new { |h,k| h[k] = Time.now.to_i - @congestion_interval }
 
-    @codec.on_event do |payload|
-      # How can I do this sort of thing with codecs?
-      #key = event.sprintf(@key)
-      key = @key
-
-      if @batch and @data_type == 'list' # Don't use batched method for pubsub.
-        # Stud::Buffer
-        buffer_receive(payload, key)
-        next
-      end
-
-      begin
-        @redis ||= connect
-        if @data_type == 'list'
-          congestion_check(key)
-          @redis.rpush(key, payload)
-        else
-          @redis.publish(key, payload)
-        end
-      rescue => e
-        @logger.warn("Failed to send event to Redis", :event => event,
-                     :identity => identity, :exception => e,
-                     :backtrace => e.backtrace)
-        sleep @reconnect_interval
-        @redis = nil
-        retry
-      end
-    end
+    @codec.on_event(&method(:send_to_redis))
   end # def register
 
   def receive(event)
@@ -179,8 +152,8 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     # if they fail to convert properly.
     begin
       @codec.encode(event)
-    rescue JSON::GeneratorError => e
-      @logger.warn("Trouble converting event to JSON", :exception => e,
+    rescue StandardError => e
+      @logger.warn("Error encoding event", :exception => e,
                    :event => event)
     end
   end # def receive
@@ -253,4 +226,31 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     @name || "redis://#{@password}@#{@current_host}:#{@current_port}/#{@db} #{@data_type}:#{@key}"
   end
 
+  def send_to_redis(event, payload)
+    # How can I do this sort of thing with codecs?
+    key = event.sprintf(@key)
+    
+    if @batch and @data_type == 'list' # Don't use batched method for pubsub.
+      # Stud::Buffer
+      buffer_receive(payload, key)
+      next
+    end
+
+    begin
+      @redis ||= connect
+      if @data_type == 'list'
+        congestion_check(key)
+        @redis.rpush(key, payload)
+      else
+        @redis.publish(key, payload)
+      end
+    rescue => e
+      @logger.warn("Failed to send event to Redis", :event => event,
+                   :identity => identity, :exception => e,
+                   :backtrace => e.backtrace)
+      sleep @reconnect_interval
+      @redis = nil
+      retry
+    end
+  end
 end
