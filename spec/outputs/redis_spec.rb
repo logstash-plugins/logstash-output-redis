@@ -2,6 +2,7 @@ require "logstash/devutils/rspec/spec_helper"
 require "logstash/outputs/redis"
 require "logstash/json"
 require "redis"
+require "flores/random"
 
 describe LogStash::Outputs::Redis, :redis => true do
   
@@ -48,37 +49,33 @@ describe LogStash::Outputs::Redis, :redis => true do
   end
 
   describe "batch mode" do
-    key = 10.times.collect { rand(10).to_s }.join("")
-    event_count = 200000
+    let(:key) { 10.times.collect { rand(10).to_s }.join("") }
+    let(:event_count) { Flores::Random.integer(0..10000) }
+    let(:message) { Flores::Random.text(0..100) }
 
-    config <<-CONFIG
-      input {
-        generator {
-          message => "hello world"
-          count => #{event_count}
-          type => "generator"
-        }
-      }
-      output {
-        redis {
-          host => "127.0.0.1"
-          key => "#{key}"
-          data_type => list
-          batch => true
-          batch_timeout => 5
-          timeout => 5
-        }
-      }
-    CONFIG
+    let(:redis_output) {
+      LogStash::Plugin.lookup("output", "redis").new(
+        "host" => "127.0.0.1",
+        "key" => key,
+        "data_type" => "list",
+        "batch" => true,
+        "batch_timeout" => 5,
+        "timeout" => 5
+      )
+    }
 
-    agent do
-      # we have to wait for close to execute & flush the last batch.
-      # otherwise we might start doing assertions before everything has been
-      # sent out to redis.
-      sleep 2
+    before do
+      redis_output.register
+      event_count.times do |i|
+        event = LogStash::Event.new("sequence" => i, "message" => message)
+        redis_output.receive(event)
+      end
+      redis_output.close
+    end
 
+    it "should successfully send all events to redis" do
       redis = Redis.new(:host => "127.0.0.1")
-
+      
       # The list should contain the number of elements our agent pushed up.
       insist { redis.llen(key) } == event_count
 
@@ -87,12 +84,12 @@ describe LogStash::Outputs::Redis, :redis => true do
         id, element = redis.blpop(key, 0)
         event = LogStash::Event.new(LogStash::Json.load(element))
         insist { event["sequence"] } == value
-        insist { event["message"] } == "hello world"
+        insist { event["message"] } == message
       end
 
       # The list should now be empty
       insist { redis.llen(key) } == 0
-    end # agent
+    end
   end
 end
 
