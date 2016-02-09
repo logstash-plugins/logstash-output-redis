@@ -5,64 +5,22 @@ require "redis"
 require "flores/random"
 
 describe LogStash::Outputs::Redis, :redis => true do
-  
 
-  describe "ship lots of events to a list" do
-    key = 10.times.collect { rand(10).to_s }.join("")
-    event_count = 10000 + rand(500)
-
-    config <<-CONFIG
-      input {
-        generator {
-          message => "hello world"
-          count => #{event_count}
-          type => "generator"
-        }
-      }
-      output {
-        redis {
-          host => "127.0.0.1"
-          key => "#{key}"
-          data_type => list
-        }
-      }
-    CONFIG
-
-    agent do
-      # Query redis directly and inspect the goodness.
-      redis = Redis.new(:host => "127.0.0.1")
-
-      # The list should contain the number of elements our agent pushed up.
-      insist { redis.llen(key) } == event_count
-
-      # Now check all events for order and correctness.
-      event_count.times do |value|
-        id, element = redis.blpop(key, 0)
-        event = LogStash::Event.new(LogStash::Json.load(element))
-        insist { event["sequence"] } == value
-        insist { event["message"] } == "hello world"
-      end
-
-      # The list should now be empty
-      insist { redis.llen(key) } == 0
-    end # agent
-  end
-
-  describe "batch mode" do
+  shared_examples_for "writing to redis list" do |extra_config|
     let(:key) { 10.times.collect { rand(10).to_s }.join("") }
     let(:event_count) { Flores::Random.integer(0..10000) }
     let(:message) { Flores::Random.text(0..100) }
-
-    let(:redis_output) {
-      LogStash::Plugin.lookup("output", "redis").new(
-        "host" => "127.0.0.1",
+    let(:default_config) {
+      {
         "key" => key,
         "data_type" => "list",
-        "batch" => true,
-        "batch_timeout" => 5,
-        "timeout" => 5
-      )
+        "host" => "localhost"
+      }
     }
+    let(:redis_config) { 
+      default_config.merge(extra_config || {})
+    }
+    let(:redis_output) { described_class.new(redis_config) }
 
     before do
       redis_output.register
@@ -90,6 +48,18 @@ describe LogStash::Outputs::Redis, :redis => true do
       # The list should now be empty
       insist { redis.llen(key) } == 0
     end
+  end
+
+  context "when batch_mode is false" do
+    include_examples "writing to redis list"
+  end
+
+  context "when batch_mode is true" do
+    include_examples "writing to redis list", { 
+      "batch" => true,
+      "batch_timeout" => 5,
+      "timeout" => 5
+    }
   end
 end
 
