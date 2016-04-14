@@ -1,7 +1,9 @@
 sudo: false
 language: ruby
 cache: bundler
+services:
+  - redis-server
 rvm:
   - jruby-1.7.23
 script: 
-  - bundle exec rspec spec
+  - bundle exec rspec spec && bundle exec rspec spec --tag redis
