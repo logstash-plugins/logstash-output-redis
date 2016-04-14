@@ -7,7 +7,7 @@ require "stud/buffer"
 # The RPUSH command is supported in Redis v0.0.7+. Using
 # PUBLISH to a channel requires at least v1.3.8+.
 # While you may be able to make these Redis versions work,
-# the best performance and stability will be found in more 
+# the best performance and stability will be found in more
 # recent stable versions.  Versions 2.6.0+ are recommended.
 #
 # For more information, see http://redis.io/[the Redis homepage]
@@ -144,14 +144,17 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   end # def register
 
   def receive(event)
-    
-
     # TODO(sissel): We really should not drop an event, but historically
     # we have dropped events that fail to be converted to json.
     # TODO(sissel): Find a way to continue passing events through even
     # if they fail to convert properly.
     begin
       @codec.encode(event)
+    rescue LocalJumpError
+      # This LocalJumpError rescue clause is required to test for regressions
+      # for https://github.com/logstash-plugins/logstash-output-redis/issues/26
+      # see specs. Without it the LocalJumpError is rescued by the StandardError
+      raise
     rescue StandardError => e
       @logger.warn("Error encoding event", :exception => e,
                    :event => event)
@@ -229,11 +232,11 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   def send_to_redis(event, payload)
     # How can I do this sort of thing with codecs?
     key = event.sprintf(@key)
-    
-    if @batch and @data_type == 'list' # Don't use batched method for pubsub.
+
+    if @batch && @data_type == 'list' # Don't use batched method for pubsub.
       # Stud::Buffer
       buffer_receive(payload, key)
-      next
+      return
     end
 
     begin
