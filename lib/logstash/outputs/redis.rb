@@ -60,8 +60,8 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # TODO set required true
   config :key, :validate => :string, :required => false
 
-  # Either list or channel.  If `redis_type` is list, then we will set
-  # RPUSH to key. If `redis_type` is channel, then we will PUBLISH to `key`.
+  # Either list or channel.  If `data_type` is list, then we will set
+  # RPUSH to key. If `data_type` is channel, then we will PUBLISH to `key`.
   # TODO set required true
   config :data_type, :validate => [ "list", "channel" ], :required => false
 
