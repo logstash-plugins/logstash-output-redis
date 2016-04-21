@@ -21,7 +21,6 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   default :codec, "json"
 
   # Name is used for logging in case there are multiple instances.
-  # TODO: delete
   config :name, :validate => :string, :default => 'default',
     :deprecated => true
 
@@ -52,17 +51,14 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
   # The name of the Redis queue (we'll use RPUSH on this). Dynamic names are
   # valid here, for example `logstash-%{type}`
-  # TODO: delete
   config :queue, :validate => :string, :deprecated => true
 
   # The name of a Redis list or channel. Dynamic names are
   # valid here, for example `logstash-%{type}`.
-  # TODO set required true
   config :key, :validate => :string, :required => false
 
   # Either list or channel.  If `redis_type` is list, then we will set
   # RPUSH to key. If `redis_type` is channel, then we will PUBLISH to `key`.
-  # TODO set required true
   config :data_type, :validate => [ "list", "channel" ], :required => false
 
   # Set to true if you want Redis to batch up values and send 1 RPUSH command
