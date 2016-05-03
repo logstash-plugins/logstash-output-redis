@@ -42,8 +42,8 @@ describe LogStash::Outputs::Redis do
         event_count.times do |value|
           id, element = redis.blpop(key, 0)
           event = LogStash::Event.new(LogStash::Json.load(element))
-          insist { event["sequence"] } == value
-          insist { event["message"] } == message
+          insist { event.get("sequence") } == value
+          insist { event.get("message") } == message
         end
 
         # The list should now be empty
