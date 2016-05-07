@@ -26,6 +26,8 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
   # The hostname(s) of your Redis server(s). Ports may be specified on any
   # hostname, which will override the global port config.
+  # If the hosts list is an array, Logstash will pick one random host to connect to,
+  # if that host is disconnected it will then pick another.
   #
   # For example:
   # [source,ruby]
