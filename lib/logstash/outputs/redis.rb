@@ -67,11 +67,17 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # By default the last n values are kept forever
   config :expire, :validate => :number, :default => -1
 
-  # Either list or channel.  If `data_type` is `list`, then we will set
+  # Either list, channel, last_n_values or last_value.
+  # If `data_type` is `list`, then we will set
   # `RPUSH` to key. If `data_type` is `channel`, then we will PUBLISH to `key`.
-  # If `data_type` is `last_n_values`, then we will `LPUSH` to `key` and `LTRIM` to `stack_size`
-  # with an expiration of `expire` seconds if `expire` is > 0
-  config :data_type, :validate => [ "list", "channel", "last_n_values" ], :required => false
+  # If `data_type` is `last_n_values`, then we will parse the evnt object and `LPUSH` each object
+  # key/value under top level key `key` and `LTRIM` to `stack_size` so as to obtain a tree of 'lists'
+  # with the last n values of each key in the event object.
+  # if `data_type` is `last_value`, then we will parse the object and `SET` each object key/value under
+  # top level key `key`.
+  # In building key/value trees, the separator is `:`.
+  # With `last_n_values` and `last_value`, an expiration of `expire` seconds is set on each key if `expire` is > 0
+  config :data_type, :validate => [ "list", "channel", "last_n_values", "last_value" ], :required => false
 
   # Set to true if you want Redis to batch up values and send 1 RPUSH command
   # instead of one command per value to push on the list.  Note that this only
@@ -186,13 +192,21 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     # we should not block due to congestion on close
     # to support this Stud::Buffer#buffer_flush should pass here the :final boolean value.
     congestion_check(key) unless close
-    if @data_type == "list"
-	    @redis.rpush(key, events)
-	elsif @data_type == "last_n_values"
-		@redis.multi
-        recurse(key, JSON.parse(payload))
+    case @data_type
+      when 'list'
+        congestion_check(key)
+        @redis.rpush(key, payload)
+      when 'last_n_values'
+        @redis.multi
+        recurse_lpush(key, JSON.parse(payload))
         @redis.exec
-	end
+      when 'last_value'
+        @redis.multi
+        recurse_set(key, JSON.parse(payload))
+        @redis.exec
+      else
+        @redis.publish(key, payload)
+      end
   end # def flush
 
   # called from Stud::Buffer#buffer_flush when an error occurs
@@ -244,19 +258,32 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     @name || "redis://#{@password}@#{@current_host}:#{@current_port}/#{@db} #{@data_type}:#{@key}"
   end
 
-  def recurse(key, payload)
-	payload.each do |k, value|
-		if value.is_a?(Hash)
-			recurse(key+":"+k, value)
-		else
-	        @redis.lpush(key+":"+k, value)
-	        @redis.ltrim(key+":"+k, 0, @stack_size - 1)
-	        if @expire > 0
-				@redis.expire(key+":"+k, @expire)
-			end
-		end
-	end
-  end # recurse
+  def recurse_lpush(key, payload)
+    payload.each do |k, value|
+        if value.is_a?(Hash)
+            recurse_lpush(key+":"+k, value)
+        else
+            @redis.lpush(key+":"+k, value)
+            @redis.ltrim(key+":"+k, 0, @stack_size - 1)
+            if @expire > 0
+                @redis.expire(key+":"+k, @expire)
+            end
+        end
+    end
+  end # def recurse_lpush
+
+  def recurse_set(key, payload)
+    payload.each do |k, value|
+        if value.is_a?(Hash)
+            recurse_set(key+":"+k, value)
+        else
+            @redis.set(key+":"+k, value)
+            if @expire > 0
+                @redis.expire(key+":"+k, @expire)
+            end
+        end
+    end
+  end # def recurse_set
 
   def send_to_redis(event, payload)
     # How can I do this sort of thing with codecs?
@@ -270,16 +297,21 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
     begin
       @redis ||= connect
-      if @data_type == 'list'
-        congestion_check(key)
-        @redis.rpush(key, payload)
-      elsif @data_type == 'last_n_values'
-        @redis.multi
-        recurse(key, JSON.parse(payload))
-        @redis.exec
-      else
-        @redis.publish(key, payload)
-      end
+      case @data_type
+        when 'list'
+          congestion_check(key)
+          @redis.rpush(key, payload)
+        when 'last_n_values'
+          @redis.multi
+          recurse_lpush(key, JSON.parse(payload))
+          @redis.exec
+        when 'last_value'
+          @redis.multi
+          recurse_set(key, JSON.parse(payload))
+          @redis.exec
+        else
+          @redis.publish(key, payload)
+        end
     rescue => e
       @logger.warn("Failed to send event to Redis", :event => event,
                    :identity => identity, :exception => e,
