@@ -134,7 +134,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
 
     if @batch
-      if ["list", "last_n_values"].include? @data_type
+      if not ["list", "last_n_values"].include? @data_type
         raise RuntimeError.new(
           "batch is not supported with data_type #{@data_type}"
         )
