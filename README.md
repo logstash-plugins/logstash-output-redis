@@ -1,3 +1,17 @@
+#Changelog
+
+#####redis-sentinel example conf
+
+```
+    redis {
+       data_type=>"list"
+       db=>0
+       key=>"logstash-%{type}"
+       sentinel_hosts=>["127.0.0.1:26380"]
+       password=>"123"
+    }
+```
+
 # Logstash Plugin
 
 [![Travis Build Status](https://travis-ci.org/logstash-plugins/logstash-output-redis.svg)](https://travis-ci.org/logstash-plugins/logstash-output-redis)
@@ -96,3 +110,4 @@ Programming is not a required skill. Whatever you've seen about open source and 
 It is more important to the community that you are able to contribute.
 
 For more information about contributing, see the [CONTRIBUTING](https://github.com/elastic/logstash/blob/master/CONTRIBUTING.md) file.
+
