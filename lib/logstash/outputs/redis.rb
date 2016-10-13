@@ -213,7 +213,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       :timeout => @timeout,
       :db => @db
     }
-    @logger.debug(params)
+    @logger.debug("connection params", params)
 
     if @password
       params[:password] = @password.value
