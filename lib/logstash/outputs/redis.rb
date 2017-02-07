@@ -3,12 +3,16 @@ require "logstash/outputs/base"
 require "logstash/namespace"
 require "stud/buffer"
 
-# This output will send events to a Redis queue using RPUSH.
+# This output will send events to a Redis queue using RPUSH
+# or ZADD (in priority mode).
+#
 # The RPUSH command is supported in Redis v0.0.7+. Using
 # PUBLISH to a channel requires at least v1.3.8+.
 # While you may be able to make these Redis versions work,
 # the best performance and stability will be found in more
 # recent stable versions.  Versions 2.6.0+ are recommended.
+#
+# The ZADD command is supported in Redis v1.2.0+.
 #
 # For more information, see http://redis.io/[the Redis homepage]
 #
@@ -51,7 +55,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # Password to authenticate with.  There is no authentication by default.
   config :password, :validate => :password
 
-  # The name of the Redis queue (we'll use RPUSH on this). Dynamic names are
+  # The name of the Redis queue (we'll use RPUSH or ZADD on this). Dynamic names are
   # valid here, for example `logstash-%{type}`
   config :queue, :validate => :string, :deprecated => true
 
@@ -60,22 +64,22 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   config :key, :validate => :string, :required => false
 
   # Either list or channel.  If `redis_type` is list, then we will set
-  # RPUSH to key. If `redis_type` is channel, then we will PUBLISH to `key`.
+  # RPUSH or ZADD to key. If `redis_type` is channel, then we will PUBLISH to `key`.
   config :data_type, :validate => [ "list", "channel" ], :required => false
 
-  # Set to true if you want Redis to batch up values and send 1 RPUSH command
+  # Set to true if you want Redis to batch up values and send 1 RPUSH or 1 ZADD command
   # instead of one command per value to push on the list.  Note that this only
   # works with `data_type="list"` mode right now.
   #
-  # If true, we send an RPUSH every "batch_events" events or
+  # If true, we send an RPUSH or ZADD every "batch_events" events or
   # "batch_timeout" seconds (whichever comes first).
   # Only supported for `data_type` is "list".
   config :batch, :validate => :boolean, :default => false
 
-  # If batch is set to true, the number of events we queue up for an RPUSH.
+  # If batch is set to true, the number of events we queue up for an RPUSH or ZADD.
   config :batch_events, :validate => :number, :default => 50
 
-  # If batch is set to true, the maximum amount of time between RPUSH commands
+  # If batch is set to true, the maximum amount of time between RPUSH or ZADD commands
   # when there are pending events to flush.
   config :batch_timeout, :validate => :number, :default => 5
 
@@ -94,6 +98,15 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # How often to check for congestion. Default is one second.
   # Zero means to check on every event.
   config :congestion_interval, :validate => :number, :default => 1
+
+  # Enable priority mode
+  config :priority, :validate => :boolean, :default => false
+
+  # Priority field to use, if field doesn't exist, priority will be priority_default
+  config :priority_field, :validate => :string, :default => "@timestamp"
+
+  # Default priority when priority field is not found in the event
+  config :priority_default, :validate => :number, :default => 0
 
   def register
     require 'redis'
@@ -176,8 +189,13 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     # we should not block due to congestion on close
     # to support this Stud::Buffer#buffer_flush should pass here the :final boolean value.
     congestion_check(key) unless close
-    @redis.rpush(key, events)
+    if @priority then       
+      @redis.zadd(key, events.map{ |event| [priorize(event), event] })
+    else
+      @redis.rpush(key, events)
+    end
   end
+
   # called from Stud::Buffer#buffer_flush when an error occurs
   def on_flush_error(e)
     @logger.warn("Failed to send backlog of events to Redis",
@@ -222,6 +240,30 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     Redis.new(params)
   end # def connect
 
+  private
+  def priorize(event)
+    if event.is_a?(String) then
+      begin
+        @codec.decode(event) do |event_decoded|
+          event = event_decoded
+        end
+      rescue => e # parse or event creation error
+        @logger.warn("Default priority [" << @priority_default.to_s  << "] used, can't decode event [" << @event << "]")
+        return @priority_default
+      end
+    end
+     
+    priority_value=event.get(@priority_field)
+    # Is it a number ?
+    if priority_value.to_s =~ /\A[-+]?[0-9]+(\.[0-9]+)?\z/ then 
+      return priority_value.to_f
+    else
+      @logger.debug("Default priority [" << @priority_default.to_s  << "] used, field [" << @priority_field << "] doesn't exist or is not a number")
+      return @priority_default
+    end
+
+  end
+
   # A string used to identify a Redis instance in log messages
   def identity
     @name || "redis://#{@password}@#{@current_host}:#{@current_port}/#{@db} #{@data_type}:#{@key}"
@@ -241,7 +283,11 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       @redis ||= connect
       if @data_type == 'list'
         congestion_check(key)
-        @redis.rpush(key, payload)
+        if @priority then
+          @redis.zadd(key, priorize(event), payload)
+        else
+          @redis.rpush(key, payload)
+        end
       else
         @redis.publish(key, payload)
       end
