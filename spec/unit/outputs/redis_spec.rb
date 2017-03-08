@@ -19,6 +19,7 @@ describe LogStash::Outputs::Redis do
         "data_type" => "list",
         "batch" => true,
         "batch_events" => 50,
+        "batch_timeout" => 60
        }
     }
     let(:redis) { described_class.new(config) }
