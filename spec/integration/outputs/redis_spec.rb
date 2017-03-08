@@ -72,6 +72,56 @@ describe LogStash::Outputs::Redis do
         end
       end
     end
+
+
+    shared_examples_for "writing to redis sortedset" do |extra_config|
+      let(:key) { 10.times.collect { rand(10).to_s }.join("") }
+      let(:event_count) { Flores::Random.integer(0..10000) }
+      #let(:message) { Flores::Random.text(0..100) }
+      let(:default_config) {
+        {
+          "key" => key,
+          "data_type" => "sortedset",
+          "host" => "localhost"
+        }
+      }
+      let(:redis_config) {
+        default_config.merge(extra_config || {})
+      }
+      let(:redis_output) { described_class.new(redis_config) }
+
+      before do
+        redis_output.register
+        event_count.times do |i|
+          event = LogStash::Event.new("sequence" => i, "message" => { "data" => Flores::Random.text(0..100),  "@timestamp" => i } )
+          redis_output.receive(event)
+        end
+        redis_output.close
+      end
+    end
+
+    context "when batch_mode is false" do
+      include_examples "writing to redis sortedset"
+    end
+
+    context "when batch_mode is true" do
+      batch_events = Flores::Random.integer(1..1000)
+      batch_settings = {
+        "batch" => true,
+        "batch_events" => batch_events
+      }
+
+      include_examples "writing to redis sortedset", batch_settings do
+
+        # A canary to make sure we're actually enabling batch mode
+        # in this shared example.
+        it "should have batch mode enabled" do
+          expect(redis_config).to include("batch")
+          expect(redis_config["batch"]).to be_truthy
+        end
+      end
+    end
+
   end
 end
 
