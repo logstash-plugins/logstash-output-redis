@@ -90,8 +90,10 @@ describe LogStash::Outputs::Redis do
       }
       let(:redis_output) { described_class.new(redis_config) }
 
-      before do
+      it "should call zadd" do
         redis_output.register
+        expect(redis_output).not_to receive(:rpush)
+        expect(redis_output).to receive(:zadd).exactly(1).time
         event_count.times do |i|
           event = LogStash::Event.new("sequence" => i, "message" => { "data" => Flores::Random.text(0..100),  "@timestamp" => i } )
           redis_output.receive(event)
@@ -99,6 +101,7 @@ describe LogStash::Outputs::Redis do
         redis_output.close
       end
     end
+
 
     context "when batch_mode is false" do
       include_examples "writing to redis sortedset"
