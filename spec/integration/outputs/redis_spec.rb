@@ -146,24 +146,23 @@ describe LogStash::Outputs::Redis do
       include_examples "writing to redis sortedset"
     end
 
-    #context "when batch_mode is true" do
-    #  batch_events = Flores::Random.integer(1..1000)
-    #  batch_settings = {
-    #    "batch" => true,
-    #    "batch_events" => batch_events
-    #  }
+    context "when batch_mode is true" do
+      batch_events = Flores::Random.integer(1..1000)
+      batch_settings = {
+        "batch" => true,
+        "batch_events" => batch_events
+      }
 
-    #  include_examples "writing to redis sortedset", batch_settings do
+      include_examples "writing to redis sortedset", batch_settings do
 
         # A canary to make sure we're actually enabling batch mode
         # in this shared example.
-     #   it "should have batch mode enabled" do
-     #     expect(redis_config).to include("batch")
-     #     expect(redis_config["batch"]).to be_truthy
-     #   end
-     # end
-    #end
-
+        it "should have batch mode enabled" do
+          expect(redis_config).to include("batch")
+          expect(redis_config["batch"]).to be_truthy
+        end
+      end
+    end
   end
 end
 
