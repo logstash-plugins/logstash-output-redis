@@ -102,10 +102,12 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   config :congestion_interval, :validate => :number, :default => 1
 
   # Priority field to use, if field doesn't exist, priority will be priority_default
+  # The score values should be the string representation of a double precision floating point number. +inf and -inf values are valid values as well. (see https://redis.io/commands/zadd)
   config :priority_field, :validate => :string, :default => "epoch"
 
   # Default priority when priority field is not found in the event
-  config :priority_default, :validate => :number, :default => 0
+  # The score values should be the string representation of a double precision floating point number. +inf and -inf values are valid values as well. (see https://redis.io/commands/zadd)
+  config :priority_default, :validate => :number, :default => "-1"
 
   def register
     require 'redis'
@@ -188,7 +190,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     # we should not block due to congestion on close
     # to support this Stud::Buffer#buffer_flush should pass here the :final boolean value.
     congestion_check(key) unless close
-    if @data_type == 'sortedset' then       
+    if @data_type == 'sortedset' then
       @redis.zadd(key, events.map{ |event| [priorize(event), event] })
     else
       @redis.rpush(key, events)
@@ -248,19 +250,19 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
         end
       rescue => e # parse or event creation error
         @logger.warn("Default priority [" << @priority_default.to_s  << "] used, can't decode event [" << @event << "]")
-        return @priority_default
+        return @priority_default.to_s
       end
     end
-     
+
+
     priority_value=event.get(@priority_field)
-    # Is it a number ?
-    if priority_value.to_s =~ /\A[-+]?[0-9]+(\.[0-9]+)?\z/ then 
-      return priority_value.to_f
-    else
-      @logger.debug("Default priority [" << @priority_default.to_s  << "] used, field [" << @priority_field << "] doesn't exist or is not a number")
-      return @priority_default
+
+    if priority_value.nil? || priority_value.to_s !~ /\A[-+]?[0-9]+(\.[0-9]+)?\z/ then
+      @logger.debug("Default priority [" << @priority_default.to_s  << "] used, field [" << @priority_field << "] doesn't exist or doesn't contain a number")
+      priority_value=@priority_default
     end
 
+    return priority_value.to_s
   end
 
   # A string used to identify a Redis instance in log messages
@@ -285,7 +287,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
         @redis.rpush(key, payload)
       elsif @data_type == 'sortedset'
         congestion_check(key)
-        @redis.zadd(key, priorize(event), payload)        
+        @redis.zadd(key, priorize(event), payload)
       else
         @redis.publish(key, payload)
       end
