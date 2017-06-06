@@ -11,14 +11,15 @@ describe LogStash::Outputs::Redis do
     # TODO: refactor specs above and probably rely on a Redis mock to correctly test the code expected behaviour, the actual
     # tests agains Redis should be moved into integration tests.
     let(:key) { "thekey" }
-    let(:payload) { "somepayload"}
-    let(:event) { LogStash::Event.new({"message" => "test"}) }
     let(:config) {
       {
         "key" => key,
         "data_type" => "list",
         "batch" => true,
         "batch_events" => 50,
+        "batch_timeout" => 3600 * 24,
+        # ^ this a very large timeout value to prevent the Flush Timer thread in Stud::Buffer from calling flush
+        # it screws with the RSpec expect().to receive thread safety.
        }
     }
     let(:redis) { described_class.new(config) }
@@ -27,12 +28,13 @@ describe LogStash::Outputs::Redis do
       redis.register
       expect(redis).to receive(:buffer_receive).exactly(10000).times.and_call_original
       expect(redis).to receive(:flush).exactly(200).times
+      expect(redis).not_to receive(:on_flush_error)
 
       # I was able to reproduce the LocalJumpError: unexpected next exception at around 50
       # consicutive invocations. setting to 10000 should reproduce it for any environment
       # I have no clue at this point why this problem does not happen at every invocation
-      1.upto(10000) do
-        expect{redis.receive(event)}.to_not raise_error
+      10000.times do |i|
+        expect{redis.receive(LogStash::Event.new({"message" => "test-#{i}"}))}.to_not raise_error
       end
     end
   end
