@@ -18,6 +18,8 @@ describe LogStash::Outputs::Redis do
         "batch" => true,
         "batch_events" => 50,
         "batch_timeout" => 3600 * 24,
+        # ^ this a very large timeout value to prevent the Flush Timer thread in Stud::Buffer from calling flush
+        # it screws with the RSpec expect().to receive thread safety.
        }
     }
     let(:redis) { described_class.new(config) }
