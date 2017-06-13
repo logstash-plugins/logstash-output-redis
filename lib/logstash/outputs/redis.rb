@@ -3,17 +3,16 @@ require "logstash/outputs/base"
 require "logstash/namespace"
 require "stud/buffer"
 
-# This output will send events to a Redis queue using RPUSH
-# or ZADD or PUBLISH.
-#
-# The RPUSH command is supported in Redis v0.0.7+. Using
-# PUBLISH to a channel requires at least v1.3.8+.
+# This output will send events to a Redis queue using RPUSH/ZADD/PUBLISH.
+
+# The RPUSH command is supported in Redis v0.0.7+.
+# Using ZADD is supported in Redis v1.2.0+.
+# Using PUBLISH to a channel requires at least v1.3.8+.
+
 # While you may be able to make these Redis versions work,
 # the best performance and stability will be found in more
 # recent stable versions.  Versions 2.6.0+ are recommended.
-#
-# The ZADD command is supported in Redis v1.2.0+.
-#
+
 # For more information, see http://redis.io/[the Redis homepage]
 #
 class LogStash::Outputs::Redis < LogStash::Outputs::Base
@@ -101,11 +100,11 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # Zero means to check on every event.
   config :congestion_interval, :validate => :number, :default => 1
 
-  # Priority field to use, if field doesn't exist, priority will be priority_default
+  # Priority field to use for data_type `sortedset`, if field doesn't exist, priority will be priority_default
   # The score values should be the string representation of a double precision floating point number. +inf and -inf values are valid values as well. (see https://redis.io/commands/zadd)
   config :priority_field, :validate => :string, :default => "epoch"
 
-  # Default priority when priority field is not found in the event
+  # Default priority for data_type `sortedset` when priority field is not found in the event
   # The score values should be the string representation of a double precision floating point number. +inf and -inf values are valid values as well. (see https://redis.io/commands/zadd)
   config :priority_default, :validate => :number, :default => "-1"
 
