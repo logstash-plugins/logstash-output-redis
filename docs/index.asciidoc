@@ -164,7 +164,7 @@ The name of a Redis list, sortedset or channel. Dynamic names are
 valid here, for example `logstash-%{type}`.
 
 [id="plugins-{type}s-{plugin}-priority_field"]
-===== priority_field`
+===== priority_field
 
   * Value type is <<string,string>>
   * Default value is `epoch`
@@ -173,7 +173,7 @@ Priority field to use for data_type `sortedset`, if field doesn't exist, priorit
 The score values should be the string representation of a double precision floating point number. +inf and -inf values are valid values as well. (see https://redis.io/commands/zadd)
 
 [id="plugins-{type}s-{plugin}-priority_default"]
-===== priority_field`
+===== priority_default
 
   * Value type is <<number,number>>
   * Default value is `-1`
