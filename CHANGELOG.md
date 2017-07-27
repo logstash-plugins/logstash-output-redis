@@ -1,3 +1,6 @@
+## 4.0.0
+  - Mark deprecated `name` and `queue` configuration parameters as obsolete
+
 ## 3.0.3
   - Fix logging method signature for #debug
 ## 3.0.2
