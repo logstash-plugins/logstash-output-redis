@@ -1,3 +1,6 @@
+## 4.0.1
+  - Fix some documentation issues
+
 ## 4.0.0
   - Mark deprecated `name` and `queue` configuration parameters as obsolete
 
