@@ -1,3 +1,6 @@
+## 3.0.5
+  - Docs fixes
+
 ## 3.0.3
   - Fix logging method signature for #debug
 ## 3.0.2
