@@ -1,3 +1,6 @@
+## 4.0.3
+  - Update gemspec summary
+
 ## 4.0.2
   - Tighten gem deps for the 'redis' gem
 ## 4.0.1
