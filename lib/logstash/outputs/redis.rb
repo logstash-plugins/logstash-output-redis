@@ -198,16 +198,13 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     
     baseParams = {
       :timeout => @timeout,
-      :db => @db
+      :db => @db,
+      :password => @password.nil? ? nil : @password.value
     }
 
     params = connectionParams.merge(baseParams)
 
-    @logger.info("connection params", params)
-
-    if @password
-      params[:password] = @password.value
-    end
+    @logger.debug("connection params", params)
 
     @host_idx = @host_idx + 1 >= @host.length ? 0 : @host_idx + 1
     
