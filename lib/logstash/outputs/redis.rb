@@ -31,7 +31,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # For example:
   # [source,ruby]
   #     "127.0.0.1"
-  #     ["127.0.0.1", "127.0.0.2"]
+  #     ["127.0.0.1", "127.0.0.2", "/var/run/redis/redis.sock"]
   #     ["127.0.0.1:6380", "127.0.0.1"]
   config :host, :validate => :array, :default => ["127.0.0.1"]
 
@@ -178,31 +178,47 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
   private
   def connect
-    @current_host, @current_port = @host[@host_idx].split(':')
-    @host_idx = @host_idx + 1 >= @host.length ? 0 : @host_idx + 1
+    if @host[@host_idx].start_with?("/")
+      @current_path = @host[@host_idx]
+      connectionParams = {
+        :path => @current_path
+      }
+    else
+      @current_host, @current_port = @host[@host_idx].split(':')
 
-    if not @current_port
-      @current_port = @port
+      if not @current_port
+        @current_port = @port
+      end
+
+      connectionParams = {
+        :host => @current_host,
+        :port => @current_port
+      }
     end
-
-    params = {
-      :host => @current_host,
-      :port => @current_port,
+    
+    baseParams = {
       :timeout => @timeout,
       :db => @db
     }
-    @logger.debug("connection params", params)
+
+    params = connectionParams.merge(baseParams)
+
+    @logger.info("connection params", params)
 
     if @password
       params[:password] = @password.value
     end
 
+    @host_idx = @host_idx + 1 >= @host.length ? 0 : @host_idx + 1
+    
     Redis.new(params)
+
   end # def connect
 
   # A string used to identify a Redis instance in log messages
   def identity
-    "redis://#{@password}@#{@current_host}:#{@current_port}/#{@db} #{@data_type}:#{@key}"
+    @redis_url = @current_path.nil? ? "redis://#{@password}@#{@current_host}:#{@current_port}/#{@db}" : "#{@password}@#{@pcurrent_path}/#{@db}"
+    return "#{@redis_url} #{@data_type}:#{@key}"
   end
 
   def send_to_redis(event, payload)
