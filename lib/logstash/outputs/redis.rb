@@ -21,8 +21,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   default :codec, "json"
 
   # Name is used for logging in case there are multiple instances.
-  config :name, :validate => :string, :default => 'default',
-    :deprecated => true
+  config :name, :validate => :string, :obsolete => "This option is obsolete"
 
   # The hostname(s) of your Redis server(s). Ports may be specified on any
   # hostname, which will override the global port config.
@@ -51,17 +50,15 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # Password to authenticate with.  There is no authentication by default.
   config :password, :validate => :password
 
-  # The name of the Redis queue (we'll use RPUSH on this). Dynamic names are
-  # valid here, for example `logstash-%{type}`
-  config :queue, :validate => :string, :deprecated => true
+  config :queue, :validate => :string, :obsolete => "This option is obsolete. Use `key` and `data_type`."
 
   # The name of a Redis list or channel. Dynamic names are
   # valid here, for example `logstash-%{type}`.
-  config :key, :validate => :string, :required => false
+  config :key, :validate => :string, :required => true
 
   # Either list or channel.  If `redis_type` is list, then we will set
   # RPUSH to key. If `redis_type` is channel, then we will PUBLISH to `key`.
-  config :data_type, :validate => [ "list", "channel" ], :required => false
+  config :data_type, :validate => [ "list", "channel" ], :required => true
 
   # Set to true if you want Redis to batch up values and send 1 RPUSH command
   # instead of one command per value to push on the list.  Note that this only
@@ -101,25 +98,6 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
   def register
     require 'redis'
-
-    # TODO remove after setting key and data_type to true
-    if @queue
-      if @key or @data_type
-        raise RuntimeError.new(
-          "Cannot specify queue parameter and key or data_type"
-        )
-      end
-      @key = @queue
-      @data_type = 'list'
-    end
-
-    if not @key or not @data_type
-      raise RuntimeError.new(
-        "Must define queue, or key and data_type parameters"
-      )
-    end
-    # end TODO
-
 
     if @batch
       if @data_type != "list"
@@ -215,7 +193,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       :timeout => @timeout,
       :db => @db
     }
-    @logger.debug(params)
+    @logger.debug("connection params", params)
 
     if @password
       params[:password] = @password.value
@@ -248,7 +226,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     if @sentinel_hosts
       return "redis-sentinel://#{@password} #{$sentinel_hosts} #{@db} #{@data_type}:#{@key}"
     end
-    @name || "redis://#{@password}@#{@current_host}:#{@current_port}/#{@db} #{@data_type}:#{@key}"
+    "redis://#{@password}@#{@current_host}:#{@current_port}/#{@db} #{@data_type}:#{@key}"
   end
 
   def send_to_redis(event, payload)
