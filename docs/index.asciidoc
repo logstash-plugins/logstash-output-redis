@@ -172,8 +172,16 @@ Password to authenticate with.  There is no authentication by default.
 
 The default port to connect on. Can be overridden on any hostname.
 
+[id="plugins-{type}s-{plugin}-ssl"]
+===== `ssl`
+
+  * Value type is <<boolean,boolean>>
+  * Default value is `false`
+
+Enable SSL support.
+
 [id="plugins-{type}s-{plugin}-reconnect_interval"]
-===== `reconnect_interval` 
+===== `reconnect_interval`
 
   * Value type is <<number,number>>
   * Default value is `1`
