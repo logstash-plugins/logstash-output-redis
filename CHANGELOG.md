@@ -1,3 +1,7 @@
+## 5.0.0
+  - Removed obsolete fields `queue` and `name`
+  - Changed major version of redis library dependency to 4.x
+
 ## 4.0.4
   - Docs: Set the default_codec doc attribute.
 

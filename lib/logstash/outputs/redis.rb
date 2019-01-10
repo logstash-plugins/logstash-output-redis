@@ -20,9 +20,6 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
   default :codec, "json"
 
-  # Name is used for logging in case there are multiple instances.
-  config :name, :validate => :string, :obsolete => "This option is obsolete"
-
   # The hostname(s) of your Redis server(s). Ports may be specified on any
   # hostname, which will override the global port config.
   # If the hosts list is an array, Logstash will pick one random host to connect to,
@@ -49,8 +46,6 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
   # Password to authenticate with.  There is no authentication by default.
   config :password, :validate => :password
-
-  config :queue, :validate => :string, :obsolete => "This option is obsolete. Use `key` and `data_type`."
 
   # The name of a Redis list or channel. Dynamic names are
   # valid here, for example `logstash-%{type}`.
