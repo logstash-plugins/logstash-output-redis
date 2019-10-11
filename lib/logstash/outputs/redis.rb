@@ -38,6 +38,9 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # The default port to connect on. Can be overridden on any hostname.
   config :port, :validate => :number, :default => 6379
 
+  # SSL
+  config :ssl, :validate => :boolean, :default => false
+
   # The Redis database number.
   config :db, :validate => :number, :default => 0
 
@@ -184,7 +187,8 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       :host => @current_host,
       :port => @current_port,
       :timeout => @timeout,
-      :db => @db
+      :db => @db,
+      :ssl => @ssl
     }
     @logger.debug("connection params", params)
 
