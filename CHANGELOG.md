@@ -1,5 +1,6 @@
 ## 5.1.0
-  - Added basic support for SSL  [#59](https://github.com/logstash-plugins/logstash-output-redis/pull/59) 
+  - Added basic support for SSL  [#59](https://github.com/logstash-plugins/logstash-output-redis/pull/59)
+  - Fixed documentation of required settings [#61](https://github.com/logstash-plugins/logstash-output-redis/pull/61)
 
 ## 5.0.0
   - Removed obsolete fields `queue` and `name`
