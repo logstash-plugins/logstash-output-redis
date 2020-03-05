@@ -36,18 +36,18 @@ describe LogStash::Outputs::Redis do
         redis = Redis.new(:host => "127.0.0.1")
 
         # The list should contain the number of elements our agent pushed up.
-        insist { redis.llen(key) } == event_count
+        expect(redis.llen(key)).to eql event_count
 
         # Now check all events for order and correctness.
         event_count.times do |value|
           id, element = redis.blpop(key, 0)
           event = LogStash::Event.new(LogStash::Json.load(element))
-          insist { event.get("sequence") } == value
-          insist { event.get("message") } == message
+          expect(event.get("sequence")).to eql value
+          expect(event.get("message")).to eql message
         end
 
         # The list should now be empty
-        insist { redis.llen(key) } == 0
+        expect(redis.llen(key)).to eql 0
       end
     end
 
@@ -74,4 +74,3 @@ describe LogStash::Outputs::Redis do
     end
   end
 end
-
