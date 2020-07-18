@@ -20,6 +20,20 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
   default :codec, "json"
 
+
+
+  # Redis Cluster | Redis stand-alone config
+  # The value of true is cluster | The value of false is stand-alone
+  config :cluster, :validate => :boolean, :default => false
+
+  # Use this type for Redis Cluster
+  # The hostname(s) of your Redis server(s). Ports may be specified on any
+  #
+  # For example:
+  #     ["redis://password@127.0.0.1:7000", "redis://password@127.0.0.1:7001", "redis://password@127.0.0.1:7001"]
+  config :clusterHost, :validate => :array, :default => ["redis://password@127.0.0.1:7000"]
+
+  # Use this type for Redis stand-alone
   # The hostname(s) of your Redis server(s). Ports may be specified on any
   # hostname, which will override the global port config.
   # If the hosts list is an array, Logstash will pick one random host to connect to,
@@ -177,7 +191,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   private
   def connect
     if @cluster
-        Redis.new(cluster:@host)
+        Redis.new(cluster:@clusterHost)
     else
         @current_host, @current_port = @host[@host_idx].split(':')
         @host_idx = @host_idx + 1 >= @host.length ? 0 : @host_idx + 1
