@@ -176,27 +176,31 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
   private
   def connect
-    @current_host, @current_port = @host[@host_idx].split(':')
-    @host_idx = @host_idx + 1 >= @host.length ? 0 : @host_idx + 1
+    if @cluster
+        Redis.new(cluster:@host)
+    else
+        @current_host, @current_port = @host[@host_idx].split(':')
+        @host_idx = @host_idx + 1 >= @host.length ? 0 : @host_idx + 1
 
-    if not @current_port
-      @current_port = @port
+        if not @current_port
+          @current_port = @port
+        end
+
+        params = {
+          :host => @current_host,
+          :port => @current_port,
+          :timeout => @timeout,
+          :db => @db,
+          :ssl => @ssl
+        }
+        @logger.debug("connection params", params)
+
+        if @password
+          params[:password] = @password.value
+        end
+
+        Redis.new(params)
     end
-
-    params = {
-      :host => @current_host,
-      :port => @current_port,
-      :timeout => @timeout,
-      :db => @db,
-      :ssl => @ssl
-    }
-    @logger.debug("connection params", params)
-
-    if @password
-      params[:password] = @password.value
-    end
-
-    Redis.new(params)
   end # def connect
 
   # A string used to identify a Redis instance in log messages
