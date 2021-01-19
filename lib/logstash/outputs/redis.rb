@@ -90,6 +90,10 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # Zero means to check on every event.
   config :congestion_interval, :validate => :number, :default => 1
 
+  config :sentinel_hosts, :validate => :array
+
+  config :master, :validate => :string, :default => "mymaster"
+
   def register
     require 'redis'
 
@@ -184,8 +188,6 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     end
 
     params = {
-      :host => @current_host,
-      :port => @current_port,
       :timeout => @timeout,
       :db => @db,
       :ssl => @ssl
@@ -196,11 +198,33 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       params[:password] = @password.value
     end
 
+    if @sentinel_hosts
+      @logger.info('Connecting to sentinel')
+      hosts = []
+      for sentinel_host in @sentinel_hosts
+        host, port = sentinel_host.split(":")
+        unless port
+          port = @sentinel_port
+        end
+        hosts.push({:host => host, :port => port})
+      end
+      params[:url] = 'redis://'+@master
+      params[:sentinels] = hosts
+      params[:role] = :master
+    else
+      params[:host] = @current_host
+      params[:port] = @current_port
+    end
+
+
     Redis.new(params)
   end # def connect
 
   # A string used to identify a Redis instance in log messages
   def identity
+    if @sentinel_hosts
+      return "redis-sentinel://#{@password} #{$sentinel_hosts} #{@db} #{@data_type}:#{@key}"
+    end
     "redis://#{@password}@#{@current_host}:#{@current_port}/#{@db} #{@data_type}:#{@key}"
   end
 
