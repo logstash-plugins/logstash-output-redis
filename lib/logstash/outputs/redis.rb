@@ -3,9 +3,10 @@ require "logstash/outputs/base"
 require "logstash/namespace"
 require "stud/buffer"
 
-# This output will send events to a Redis queue using RPUSH.
-# The RPUSH command is supported in Redis v0.0.7+. Using
-# PUBLISH to a channel requires at least v1.3.8+.
+# This output will send events to a Redis queue using RPUSH
+# or LPUSH.
+# The RPUSH and LPUSH commands are supported in Redis v1.0.0+.
+# Using PUBLISH to a channel requires at least v1.3.8+.
 # While you may be able to make these Redis versions work,
 # the best performance and stability will be found in more
 # recent stable versions.  Versions 2.6.0+ are recommended.
@@ -54,15 +55,19 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # valid here, for example `logstash-%{type}`.
   config :key, :validate => :string, :required => true
 
-  # Either list or channel.  If `redis_type` is list, then we will set
-  # RPUSH to key. If `redis_type` is channel, then we will PUBLISH to `key`.
+  # Either list or channel. If `redis_type` is list, then we will set RPUSH (or
+  # LPUSH) to key. If `redis_type` is channel, then we will PUBLISH to `key`.
   config :data_type, :validate => [ "list", "channel" ], :required => true
 
-  # Set to true if you want Redis to batch up values and send 1 RPUSH command
-  # instead of one command per value to push on the list.  Note that this only
-  # works with `data_type="list"` mode right now.
+  # Either RPUSH or LPUSH. Only relevant if `data_type` is list. Defines if
+  # elements shall be inserted at the head of the list (LPUSH) or the tail (RPUSH).
+  config :list_operation, :validate => ["RPUSH", "LPUSH"], :default => "RPUSH"
+
+  # Set to true if you want Redis to batch up values and send 1 RPUSH (or
+  # LPUSH) command instead of one command per value to push on the list.
+  # Note that this only works with `data_type="list"` mode right now.
   #
-  # If true, we send an RPUSH every "batch_events" events or
+  # If true, we send an RPUSH (or LPUSH) every "batch_events" events or
   # "batch_timeout" seconds (whichever comes first).
   # Only supported for `data_type` is "list".
   config :batch, :validate => :boolean, :default => false
@@ -152,7 +157,11 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     # we should not block due to congestion on close
     # to support this Stud::Buffer#buffer_flush should pass here the :final boolean value.
     congestion_check(key) unless close
-    @redis.rpush(key, events)
+    if @list_operation == 'LPUSH'
+        @redis.lpush(key, events)
+    else
+        @redis.rpush(key, events)
+    end
   end
   # called from Stud::Buffer#buffer_flush when an error occurs
   def on_flush_error(e)
@@ -218,7 +227,11 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       @redis ||= connect
       if @data_type == 'list'
         congestion_check(key)
-        @redis.rpush(key, payload)
+        if @list_operation == 'LPUSH'
+          @redis.lpush(key, payload)
+        else
+          @redis.rpush(key, payload)
+        end
       else
         @redis.publish(key, payload)
       end
