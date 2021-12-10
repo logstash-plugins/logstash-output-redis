@@ -44,6 +44,13 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   # The Redis database number.
   config :db, :validate => :number, :default => 0
 
+  # Redis master URL, if using Sentinel. For example: `redis://redis-cluster`.
+  config :url, :valiate => :string, :default => ""
+
+  # The hostname(s) of your Redis Sentinel server(s), if using Sentinel.
+  # Values are formatted like the `host` setting above.
+  config :sentinels, :validate => :array, :default => []
+
   # Redis initial connection timeout in seconds.
   config :timeout, :validate => :number, :default => 5
 
@@ -176,6 +183,13 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
   private
   def connect
+    params = if @sentinels.size then params_sentinel else params_redis end
+    @logger.debug(params)
+
+    Redis.new(params)
+  end
+
+  def params_redis
     @current_host, @current_port = @host[@host_idx].split(':')
     @host_idx = @host_idx + 1 >= @host.length ? 0 : @host_idx + 1
 
@@ -196,8 +210,22 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       params[:password] = @password.value
     end
 
-    Redis.new(params)
-  end # def connect
+    params
+  end
+
+  def params_sentinel
+    {
+      :url => @url,
+      :sentinels => @sentinels.map { |sentinel|
+        host, port = sentinel.split(":")
+        {
+          :host => host,
+          :port => port
+        }
+      },
+      :role => "master"
+    }
+  end
 
   # A string used to identify a Redis instance in log messages
   def identity
