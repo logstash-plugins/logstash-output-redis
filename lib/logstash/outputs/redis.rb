@@ -56,7 +56,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
   # Either list or channel.  If `redis_type` is list, then we will set
   # RPUSH to key. If `redis_type` is channel, then we will PUBLISH to `key`.
-  config :data_type, :validate => [ "list", "channel" ], :required => true
+  config :data_type, :validate => [ "list", "channel","set"], :required => true
 
   # Set to true if you want Redis to batch up values and send 1 RPUSH command
   # instead of one command per value to push on the list.  Note that this only
@@ -215,13 +215,17 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
     end
 
     begin
-      @redis ||= connect
-      if @data_type == 'list'
-        congestion_check(key)
-        @redis.rpush(key, payload)
-      else
-        @redis.publish(key, payload)
-      end
+  # gestion du set     
+  @redis ||= connect
+  if   @data_type == 'list'
+  congestion_check(key)
+  @redis.rpush(key, payload)
+  else
+   if @data_type == 'channel'
+    @redis.publish(key, payload)
+    else
+    @redis.set(key, payload)
+    end
     rescue => e
       @logger.warn("Failed to send event to Redis", :event => event,
                    :identity => identity, :exception => e,
