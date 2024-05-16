@@ -39,7 +39,32 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
   config :port, :validate => :number, :default => 6379
 
   # SSL
-  config :ssl, :validate => :boolean, :default => false
+  config :ssl_enabled, :validate => :boolean, :default => false
+
+  # Validate the certificate chain against these authorities. You can define multiple files.
+  # All the certificates will be read and added to the trust store.
+  config :ssl_certificate_authorities, :validate => :path, :list => true
+
+  # Options to verify the server's certificate.
+  # "full": validates that the provided certificate has an issue date that’s within the not_before and not_after dates;
+  # chains to a trusted Certificate Authority (CA); has a hostname or IP address that matches the names within the certificate.
+  # "none": performs no certificate validation. Disabling this severely compromises security (https://www.cs.utexas.edu/~shmat/shmat_ccs12.pdf)
+  config :ssl_verification_mode, :validate => %w[full none], :default => 'full'
+
+  # SSL certificate path
+  config :ssl_certificate, :validate => :path
+
+  # SSL key path
+  config :ssl_key, :validate => :path
+
+  # SSL key passphrase
+  config :ssl_key_passphrase, :validate => :password, :default => nil
+
+  # NOTE: the default setting [] uses SSL engine defaults
+  config :ssl_supported_protocols, :validate => %w[TLSv1.1 TLSv1.2 TLSv1.3], :default => [], :list => true
+
+  # The list of ciphers suite to use
+  config :ssl_cipher_suites, :validate => :string, :list => true
 
   # The Redis database number.
   config :db, :validate => :number, :default => 0
@@ -92,6 +117,8 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
   def register
     require 'redis'
+
+    validate_ssl_config!
 
     if @batch
       if @data_type != "list"
@@ -188,8 +215,11 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
       :port => @current_port,
       :timeout => @timeout,
       :db => @db,
-      :ssl => @ssl
+      :ssl => @ssl_enabled,
     }
+
+    params[:ssl_params] = setup_ssl_params if @ssl_enabled
+
     @logger.debug("connection params", params)
 
     if @password
@@ -198,6 +228,67 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
     Redis.new(params)
   end # def connect
+
+  def setup_ssl_params
+    require "openssl"
+
+    params = {}
+    params[:cert_store] = ssl_certificate_store
+
+    if @ssl_verification_mode == 'none'
+      params[:verify_mode] = OpenSSL::SSL::VERIFY_NONE
+    else
+      params[:verify_mode] = OpenSSL::SSL::VERIFY_PEER|OpenSSL::SSL::VERIFY_FAIL_IF_NO_PEER_CERT
+    end
+
+    if @ssl_certificate
+      params[:cert] = OpenSSL::X509::Certificate.new(File.read(@ssl_certificate))
+      if @ssl_key
+        # if we have an encrypted key and a password is not provided (nil) than OpenSSL::PKey::RSA
+        # prompts the user to enter a password interactively - we do not want to do that,
+        # for plain-text keys the default '' password argument gets simply ignored
+        params[:key] = OpenSSL::PKey::RSA.new(File.read(@ssl_key), @ssl_key_passphrase.value || '')
+      end
+    end
+
+    params[:min_version] = :TLS1_1
+    if @ssl_supported_protocols.any?
+      protocols = @ssl_supported_protocols.map { |v| "TLS#{v[-3..-1].gsub('.', '_')}".to_sym }.sort
+      params[:min_version] = protocols.first
+      params[:max_version] = protocols.last
+    end
+
+    params[:ciphers] = @ssl_cipher_suites if @ssl_cipher_suites&.any?
+    params
+  end
+
+  def ssl_certificate_store
+    cert_store = new_ssl_certificate_store
+    cert_store.set_default_paths
+    @ssl_certificate_authorities&.each do |cert|
+      cert_store.add_file(cert)
+    end
+
+    cert_store
+  end
+
+  def new_ssl_certificate_store
+    OpenSSL::X509::Store.new
+  end
+
+  def validate_ssl_config!
+    unless @ssl_enabled
+      ignored_ssl_settings = original_params.select { |k| k != 'ssl_enabled' && k.start_with?('ssl_') }
+      @logger.warn("Configured SSL settings are not used when `ssl_enabled` is set to `false`: #{ignored_ssl_settings.keys}") if ignored_ssl_settings.any?
+      return
+    end
+
+    if @ssl_certificate && !@ssl_key
+      raise LogStash::ConfigurationError, "Using an `ssl_certificate` requires an `ssl_key`"
+    elsif @ssl_key && !@ssl_certificate
+      raise LogStash::ConfigurationError, 'An `ssl_certificate` is required when using an `ssl_key`'
+    end
+  end
 
   # A string used to identify a Redis instance in log messages
   def identity

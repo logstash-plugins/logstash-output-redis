@@ -6,8 +6,11 @@ require "flores/random"
 
 describe LogStash::Outputs::Redis do
 
+  FIXTURES_PATH = File.expand_path('../../fixtures', File.dirname(__FILE__))
+
   context "integration tests", :integration => true do
     shared_examples_for "writing to redis list" do |extra_config|
+      let(:timeout) { 5 }
       let(:key) { 10.times.collect { rand(10).to_s }.join("") }
       let(:event_count) { Flores::Random.integer(0..10000) }
       let(:message) { Flores::Random.text(0..100) }
@@ -15,13 +18,27 @@ describe LogStash::Outputs::Redis do
         {
           "key" => key,
           "data_type" => "list",
-          "host" => "localhost"
+          "host" => "redis",
+          "timeout" => timeout
         }
       }
       let(:redis_config) {
         default_config.merge(extra_config || {})
       }
       let(:redis_output) { described_class.new(redis_config) }
+
+      let(:redis) do
+        ssl_enabled = redis_config['ssl_enabled'] == true
+        cli_config = {
+          :host => redis_config["host"],
+          :port => redis_config["port"] || 6379,
+          :timeout => timeout,
+          :ssl => ssl_enabled
+        }
+
+        cli_config[:ssl_params] = redis_output.send(:setup_ssl_params) if ssl_enabled
+        Redis.new(cli_config)
+      end
 
       before do
         redis_output.register
@@ -32,15 +49,17 @@ describe LogStash::Outputs::Redis do
         redis_output.close
       end
 
-      it "should successfully send all events to redis" do
-        redis = Redis.new(:host => "127.0.0.1")
+      after do
+        redis.del(key)
+      end
 
+      it "should successfully send all events to redis" do
         # The list should contain the number of elements our agent pushed up.
         expect(redis.llen(key)).to eql event_count
 
         # Now check all events for order and correctness.
         event_count.times do |value|
-          id, element = redis.blpop(key, 0)
+          id, element = redis.blpop(key, :timeout => timeout)
           event = LogStash::Event.new(LogStash::Json.load(element))
           expect(event.get("sequence")).to eql value
           expect(event.get("message")).to eql message
@@ -53,6 +72,35 @@ describe LogStash::Outputs::Redis do
 
     context "when batch_mode is false" do
       include_examples "writing to redis list"
+    end
+
+    context "when SSL is enabled" do
+      context "with client certificate and key" do
+        ssl_config = {
+          "host" => "redis_ssl",
+          "port" => 6380,
+          "ssl_enabled" => true,
+          "ssl_certificate_authorities" => File.join(FIXTURES_PATH, 'certificates/ca.crt'),
+          "ssl_certificate" => File.join(FIXTURES_PATH, 'certificates/client.crt'),
+          "ssl_key" => File.join(FIXTURES_PATH, 'certificates/client.key')
+        }
+
+        include_examples "writing to redis list", ssl_config
+      end
+
+      context "with ssl_verification_mode => none" do
+        ssl_config = {
+          "host" => "redis_ssl",
+          "port" => 6380,
+          "ssl_enabled" => true,
+          "ssl_verification_mode" => "none",
+          "ssl_certificate" => File.join(FIXTURES_PATH, 'certificates/client.crt'),
+          "ssl_key" => File.join(FIXTURES_PATH, 'certificates/client.key')
+        }
+
+        include_examples "writing to redis list", ssl_config
+      end
+
     end
 
     context "when batch_mode is true" do

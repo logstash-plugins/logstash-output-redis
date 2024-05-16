@@ -1,0 +1,7 @@
+FROM redis
+
+COPY  /spec/fixtures/certificates /certificates
+
+COPY ./.ci/redis_ssl.entrypoint.sh /redis_ssl.entrypoint.sh
+
+ENTRYPOINT ["/redis_ssl.entrypoint.sh"]
