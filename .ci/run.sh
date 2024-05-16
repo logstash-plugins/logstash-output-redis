@@ -5,5 +5,4 @@ env
 
 set -ex
 
-jruby -rbundler/setup -S rspec -fd
-jruby -rbundler/setup -S rspec -fd --tag integration
+bundle exec rspec spec && bundle exec rspec --tag integration -fd 2>/dev/null

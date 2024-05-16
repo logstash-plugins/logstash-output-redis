@@ -1,5 +1,5 @@
 ## 5.2.0
-  - Added support to SSL/TLS configurations [#TBD](https://github.com/logstash-plugins/logstash-output-redis/pull/TBD)
+  - Added support to SSL/TLS configurations [#69](https://github.com/logstash-plugins/logstash-output-redis/pull/69)
     - `ssl_enabled` 
     - `ssl_certificate_authorities`
     - `ssl_certificate`

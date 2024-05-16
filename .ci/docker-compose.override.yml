@@ -17,8 +17,9 @@ services:
     image: redis
     hostname: redis
     container_name: redis
+    command: --port 16379
     ports:
-      - "6379:6379/tcp"
+      - "16379:16379/tcp"
     networks:
       app_net:
         ipv4_address: 172.16.238.161
@@ -27,7 +28,7 @@ services:
     hostname: redis_ssl
     container_name: redis_ssl
     ports:
-      - "6380:6380/tcp"
+      - "26379:26379/tcp"
     networks:
       app_net:
         ipv4_address: 172.16.238.162
@@ -36,7 +37,7 @@ services:
       context: ../
       dockerfile: .ci/Dockerfile.redis_ssl
     environment:
-      - PORT=6380
+      - PORT=26379
 networks:
   app_net:
     driver: bridge

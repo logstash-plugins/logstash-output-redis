@@ -7,6 +7,8 @@ require "flores/random"
 describe LogStash::Outputs::Redis do
 
   FIXTURES_PATH = File.expand_path('../../fixtures', File.dirname(__FILE__))
+  PORT = 16379
+  SSL_PORT = 26379
 
   context "integration tests", :integration => true do
     shared_examples_for "writing to redis list" do |extra_config|
@@ -19,6 +21,7 @@ describe LogStash::Outputs::Redis do
           "key" => key,
           "data_type" => "list",
           "host" => "redis",
+          "port" => PORT,
           "timeout" => timeout
         }
       }
@@ -31,7 +34,7 @@ describe LogStash::Outputs::Redis do
         ssl_enabled = redis_config['ssl_enabled'] == true
         cli_config = {
           :host => redis_config["host"],
-          :port => redis_config["port"] || 6379,
+          :port => redis_config["port"] || PORT,
           :timeout => timeout,
           :ssl => ssl_enabled
         }
@@ -78,7 +81,7 @@ describe LogStash::Outputs::Redis do
       context "with client certificate and key" do
         ssl_config = {
           "host" => "redis_ssl",
-          "port" => 6380,
+          "port" => SSL_PORT,
           "ssl_enabled" => true,
           "ssl_certificate_authorities" => File.join(FIXTURES_PATH, 'certificates/ca.crt'),
           "ssl_certificate" => File.join(FIXTURES_PATH, 'certificates/client.crt'),
@@ -91,7 +94,7 @@ describe LogStash::Outputs::Redis do
       context "with ssl_verification_mode => none" do
         ssl_config = {
           "host" => "redis_ssl",
-          "port" => 6380,
+          "port" => SSL_PORT,
           "ssl_enabled" => true,
           "ssl_verification_mode" => "none",
           "ssl_certificate" => File.join(FIXTURES_PATH, 'certificates/client.crt'),
@@ -107,7 +110,8 @@ describe LogStash::Outputs::Redis do
       batch_events = Flores::Random.integer(1..1000)
       batch_settings = {
         "batch" => true,
-        "batch_events" => batch_events
+        "batch_events" => batch_events,
+        "port" => PORT
       }
 
       include_examples "writing to redis list", batch_settings do
