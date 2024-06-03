@@ -253,7 +253,7 @@ class LogStash::Outputs::Redis < LogStash::Outputs::Base
 
     params[:min_version] = :TLS1_1
     if @ssl_supported_protocols.any?
-      protocols = @ssl_supported_protocols.map { |v| "TLS#{v[-3..-1].gsub('.', '_')}".to_sym }.sort
+      protocols = @ssl_supported_protocols.map { |v| v.delete('v').tr(".", "_").to_sym }.sort
       params[:min_version] = protocols.first
       params[:max_version] = protocols.last
     end
