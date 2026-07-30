@@ -52,13 +52,19 @@ describe LogStash::Outputs::Redis do
 
     context "and providing a certificate/key pair" do
       let(:cert_key_pair) { Flores::PKI.generate }
+      # Keep the Tempfile objects referenced for the lifetime of the example.
+      # Capturing only `.path` lets the Tempfile be garbage-collected, and its
+      # finalizer removes the backing file before the plugin validates the
+      # `:path` settings, causing a spurious "This setting must be a path" error.
+      let(:certificate_tempfile) { Tempfile.new('certificate') }
       let(:certificate) do
-        path = Tempfile.new('certificate').path
+        path = certificate_tempfile.path
         IO.write(path, cert_key_pair.first.to_s)
         path
       end
+      let(:key_tempfile) { Tempfile.new('key') }
       let(:key) do
-        path = Tempfile.new('key').path
+        path = key_tempfile.path
         IO.write(path, cert_key_pair[1].to_s)
         path
       end
